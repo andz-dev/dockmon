@@ -30,10 +30,12 @@ services:
       - monitor-net
     labels:
       org.label-schema.group: "monitoring"
+    depends_on:
+      - fluentd
     logging:
       driver: fluentd
       options:
-        fluentd-address: "localhost:24224"
+        fluentd-address: "172.20.0.2:24224"
         tag: "docker.{{.ID}}"
   
   alertmanager:
@@ -51,10 +53,12 @@ services:
       - monitor-net
     labels:
       org.label-schema.group: "monitoring"
+    depends_on:
+      - fluentd
     logging:
       driver: fluentd
       options:
-        fluentd-address: "localhost:24224"
+        fluentd-address: "172.20.0.2:24224"
         tag: "docker.{{.ID}}"
 
   nodeexporter:
@@ -77,10 +81,12 @@ services:
       - monitor-net
     labels:
       org.label-schema.group: "monitoring"
+    depends_on:
+      - fluentd
     logging:
       driver: fluentd
       options:
-        fluentd-address: "localhost:24224"
+        fluentd-address: "172.20.0.2:24224"
         tag: "docker.{{.ID}}"
 
   cadvisor:
@@ -99,10 +105,12 @@ services:
       - monitor-net
     labels:
       org.label-schema.group: "monitoring"
+    depends_on:
+      - fluentd
     logging:
       driver: fluentd
       options:
-        fluentd-address: "localhost:24224"
+        fluentd-address: "172.20.0.2:24224"
         tag: "docker.{{.ID}}"
   
   grafana:
@@ -125,10 +133,12 @@ services:
       - monitor-net
     labels:
       org.label-schema.group: "monitoring"
+    depends_on:
+      - fluentd
     logging:
       driver: fluentd
       options:
-        fluentd-address: "localhost:24224"
+        fluentd-address: "172.20.0.2:24224"
         tag: "docker.{{.ID}}"
 
   # https://hub.docker.com/r/prom/pushgateway/
@@ -142,10 +152,12 @@ services:
       - monitor-net
     labels:
       org.label-schema.group: "monitoring"
+    depends_on:
+      - fluentd
     logging:
       driver: fluentd
       options:
-        fluentd-address: "localhost:24224"
+        fluentd-address: "172.20.0.2:24224"
         tag: "docker.{{.ID}}"
 
   fluentd:
@@ -155,9 +167,9 @@ services:
     volumes:
       - ./fluentd/conf:/fluentd/etc
     restart: unless-stopped
-    ports:
-      - "24224:24224"
-      - "24224:24224/udp"
+    expose:
+      - 24224
+      - 24224/udp
     networks:
       - monitor-net
     labels:
@@ -174,6 +186,8 @@ services:
       - monitor-net
     labels:
       org.label-schema.group: "monitoring"
+    depends_on:
+      - fluentd
     environment:
       - discovery.type=single-node
 
