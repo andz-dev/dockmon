@@ -35,7 +35,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "172.20.0.2:24224"
+        fluentd-address: "fluentd:24224"
         tag: "docker.{{.ID}}"
   
   alertmanager:
@@ -58,7 +58,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "172.20.0.2:24224"
+        fluentd-address: "fluentd:24224"
         tag: "docker.{{.ID}}"
 
   nodeexporter:
@@ -86,7 +86,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "172.20.0.2:24224"
+        fluentd-address: "fluentd:24224"
         tag: "docker.{{.ID}}"
 
   cadvisor:
@@ -110,7 +110,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "172.20.0.2:24224"
+        fluentd-address: "fluentd:24224"
         tag: "docker.{{.ID}}"
   
   grafana:
@@ -138,7 +138,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "172.20.0.2:24224"
+        fluentd-address: "fluentd:24224"
         tag: "docker.{{.ID}}"
 
   # https://hub.docker.com/r/prom/pushgateway/
@@ -157,12 +157,12 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "172.20.0.2:24224"
+        fluentd-address: "fluentd:24224"
         tag: "docker.{{.ID}}"
 
+  
   fluentd:
-    build:
-      context: ./fluentd/
+    image: andz-dev/fluentelasticsearch
     container_name: fluentd
     volumes:
       - ./fluentd/conf:/fluentd/etc
@@ -190,6 +190,11 @@ services:
       - fluentd
     environment:
       - discovery.type=single-node
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "fluentd:24224"
+        tag: "docker.{{.ID}}"
 
   # caddy:
   #   image: stefanprodan/caddy
