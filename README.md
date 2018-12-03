@@ -1,132 +1,189 @@
-dockprom
-========
+# Docker Host Monitor
 
-A monitoring solution for Docker hosts and containers with [Prometheus](https://prometheus.io/), [Grafana](http://grafana.org/), [cAdvisor](https://github.com/google/cadvisor),
-[NodeExporter](https://github.com/prometheus/node_exporter) and alerting with [AlertManager](https://github.com/prometheus/alertmanager).
+A monitoring solution for Docker hosts and containers with [Prometheus](https://prometheus.io/), [Grafana](http://grafana.org/), [cAdvisor](https://github.com/google/cadvisor), [NodeExporter](https://github.com/prometheus/node_exporter) and alerting with [AlertManager](https://github.com/prometheus/alertmanager).
+I forked this project to bring some interesting advantages to the monitoring solution from [Stefan Prodans dockprom](https://github.com/stefanprodan/dockprom).
+
+Docker logs are collected by [fluentd](https://www.fluentd.org/) and provided with [elasticsearch](https://www.elastic.co/de/).
 
 ***If you're looking for the Docker Swarm version please go to [stefanprodan/swarmprom](https://github.com/stefanprodan/swarmprom)***
 
+## Prerequisites
+
+- Docker Engine >= 1.13
+- Docker Compose >= 1.11
+
 ## Install
 
-Clone this repository on your Docker host, cd into dockprom directory and run compose up:
+Clone this repository on your Docker host, go into the `dockmon` directory and run `docker-compose up -d`:
 
 ```bash
-git clone https://github.com/stefanprodan/dockprom
-cd dockprom
+git clone https://github.com/andz-dev/dockmon.git
+cd dockmon
 
 ADMIN_USER=admin ADMIN_PASSWORD=admin docker-compose up -d
 ```
 
-Prerequisites:
+## Containers
 
-* Docker Engine >= 1.13
-* Docker Compose >= 1.11
+- Prometheus (metrics database) `http://<host-ip>:9090`
+- Prometheus-Pushgateway (push acceptor for ephemeral and batch jobs) `http://<host-ip>:9091`
+- AlertManager (alerts management) `http://<host-ip>:9093`
+- Grafana (visualize metrics) `http://<host-ip>:3000`
+- NodeExporter (host metrics collector)
+- cAdvisor (containers metrics collector)
+- Traeffik (reverse proxy and basic auth provider for prometheus and alertmanager)
+- fluentd with elasticsearch plugin for the Docker logs
+- Elasticsearch for the fluentd collected logs
 
-Containers:
+## Networks
 
-* Prometheus (metrics database) `http://<host-ip>:9090`
-* Prometheus-Pushgateway (push acceptor for ephemeral and batch jobs) `http://<host-ip>:9091`
-* AlertManager (alerts management) `http://<host-ip>:9093`
-* Grafana (visualize metrics) `http://<host-ip>:3000`
-* NodeExporter (host metrics collector)
-* cAdvisor (containers metrics collector)
-* Caddy (reverse proxy and basic auth provider for prometheus and alertmanager)
+## Volumes
 
-## Setup Grafana
+## Grafana
 
-Navigate to `http://<host-ip>:3000` and login with user ***admin*** password ***admin***. You can change the credentials in the compose file or by supplying the `ADMIN_USER` and `ADMIN_PASSWORD` environment variables on compose up. The config file can be added directly in grafana part like this
-```
+### Setup
+
+Navigate to `http://<host-ip>:3000` and login with user ***admin*** password ***admin***. You can change the credentials in the compose file or by supplying the `ADMIN_USER` and `ADMIN_PASSWORD` environment variables on compose up.
+Instead of using the environments inside the compose file create a new `config` file.
+The config file can be added directly in grafana part like this
+
+```yml
 grafana:
   image: grafana/grafana:5.2.4
   env_file:
     - config
 
 ```
+
 and the config file format should have this content
-```
+
+```yml
 GF_SECURITY_ADMIN_USER=admin
 GF_SECURITY_ADMIN_PASSWORD=changeme
+# Set to true if you want to allow new users to register
 GF_USERS_ALLOW_SIGN_UP=false
 ```
+
 If you want to change the password, you have to remove this entry, otherwise the change will not take effect
-```
+
+```yml
 - grafana_data:/var/lib/grafana
 ```
 
-Grafana is preconfigured with dashboards and Prometheus as the default data source:
+### Settings
 
-* Name: Prometheus
-* Type: Prometheus
-* Url: http://prometheus:9090
-* Access: proxy
+Grafana is preconfigured with some dashboards and configs for Prometheus, Elasticsearch and so on as the default data source. The directory [datasources](./grafana/datasources) contains all in this project available datasources.
+
+On the first start the `setup.sh` script imports the dashboards and datasources via the API interface.
+If you work with grafana and add or change dashboards or data sources you can export it for backup.
+The dashboards and data sources can be exported via the Grafana API.
+
+The complete [HTTP API Reference](http://docs.grafana.org/http_api/) can be found on the official Grafana documentation.
+
+#### Data Sources
+
+To show all data sources open your browser and enter [http://10.5.0.8:3000/api/datasources](http://10.5.0.8:3000/api/datasources).
+
+You can export all datasources with the following command:
+
+```bash
+mkdir data_sources && curl -s "http://localhost:3000/api/datasources" -u admin:admin|jq -c -M '.[]'|split -l 1 - data_sources/
+```
+
+For more information visit the [Simple export/import of Data Sources in Grafana](https://rmoff.net/2017/08/08/simple-export-import-of-data-sources-in-grafana/)
+
+![Grafana data sources API](./screens/Grafana_Datasources_API.png)
+
+#### Dashboards
+
+To show all dashboards with inside the `general` directory in grafana you can use the following query. [http://10.5.0.8:3000/api/search?folderIds=0&query=&starred=false](http://10.5.0.8:3000/api/search?folderIds=0&query=&starred=false)
+
+![Grafana dashboard query](./screens/Grafana_Dashboard_Query.png)
+
+To get detail information for a dashboard use the uid, for example:
+[http://10.5.0.8:3000/api/dashboards/uid/ceETkLLmk (Docker Container Dashboard)](http://10.5.0.8:3000/api/dashboards/uid/ceETkLLmk)
+
+To export the dashboards open it inside Grafana and click on the `Share` button.
+
+![Share Button](./screens/Grafana_Share_Button.png)
+
+On the new window switch to the `Export` tab and click on `Save to file`.
+
+![Grafana Dashboard Export](./screens/Grafana_Dashboard_Export.png)
+
+Repeat the steps for each dashboard you want to export. [Read the "Export and Import" manual in the official docs for more information](http://docs.grafana.org/reference/export_import/).
+
+### Dashboard Views
 
 ***Docker Host Dashboard***
 
-![Host](https://raw.githubusercontent.com/stefanprodan/dockprom/master/screens/Grafana_Docker_Host.png)
+![Host](./screens/Grafana_Docker_Host.png)
 
 The Docker Host Dashboard shows key metrics for monitoring the resource usage of your server:
 
-* Server uptime, CPU idle percent, number of CPU cores, available memory, swap and storage
-* System load average graph, running and blocked by IO processes graph, interrupts graph
-* CPU usage graph by mode (guest, idle, iowait, irq, nice, softirq, steal, system, user)
-* Memory usage graph by distribution (used, free, buffers, cached)
-* IO usage graph (read Bps, read Bps and IO time)
-* Network usage graph by device (inbound Bps, Outbound Bps)
-* Swap usage and activity graphs
+- Server uptime, CPU idle percent, number of CPU cores, available memory, swap and storage
+- System load average graph, running and blocked by IO processes graph, interrupts graph
+- CPU usage graph by mode (guest, idle, iowait, irq, nice, softirq, steal, system, user)
+- Memory usage graph by distribution (used, free, buffers, cached)
+- IO usage graph (read Bps, read Bps and IO time)
+- Network usage graph by device (inbound Bps, Outbound Bps)
+- Swap usage and activity graphs
 
-For storage and particularly Free Storage graph, you have to specify the fstype in grafana graph request.
+For storage and particularly Free Storage graph, you have to specify the `fstype` in grafana graph request.
 You can find it in `grafana/dashboards/docker_host.json`, at line 480 :
 
-      "expr": "sum(node_filesystem_free_bytes{fstype=\"btrfs\"})",
+```json
+"expr": "sum(node_filesystem_free_bytes{fstype=\"btrfs\"})",
+```
 
 I work on BTRFS, so i need to change `aufs` to `btrfs`.
 
-You can find right value for your system in Prometheus `http://<host-ip>:9090` launching this request :
+You can find right value for your system in Prometheus `http://<host-ip>:9090` launching this request:
 
       node_filesystem_free_bytes
 
 ***Docker Containers Dashboard***
 
-![Containers](https://raw.githubusercontent.com/stefanprodan/dockprom/master/screens/Grafana_Docker_Containers.png)
+![Containers](./screens/Grafana_Docker_Containers.png)
 
 The Docker Containers Dashboard shows key metrics for monitoring running containers:
 
-* Total containers CPU load, memory and storage usage
-* Running containers graph, system load graph, IO usage graph
-* Container CPU usage graph
-* Container memory usage graph
-* Container cached memory usage graph
-* Container network inbound usage graph
-* Container network outbound usage graph
+- Total containers CPU load, memory and storage usage
+- Running containers graph, system load graph, IO usage graph
+- Container CPU usage graph
+- Container memory usage graph
+- Container cached memory usage graph
+- Container network inbound usage graph
+- Container network outbound usage graph
 
 Note that this dashboard doesn't show the containers that are part of the monitoring stack.
 
 ***Monitor Services Dashboard***
 
-![Monitor Services](https://raw.githubusercontent.com/stefanprodan/dockprom/master/screens/Grafana_Prometheus.png)
+![Monitor Services](./screens/Grafana_Prometheus.png)
 
 The Monitor Services Dashboard shows key metrics for monitoring the containers that make up the monitoring stack:
 
-* Prometheus container uptime, monitoring stack total memory usage, Prometheus local storage memory chunks and series
-* Container CPU usage graph
-* Container memory usage graph
-* Prometheus chunks to persist and persistence urgency graphs
-* Prometheus chunks ops and checkpoint duration graphs
-* Prometheus samples ingested rate, target scrapes and scrape duration graphs
-* Prometheus HTTP requests graph
-* Prometheus alerts graph
+- Prometheus container uptime, monitoring stack total memory usage, Prometheus local storage memory chunks and series
+- Container CPU usage graph
+- Container memory usage graph
+- Prometheus chunks to persist and persistence urgency graphs
+- Prometheus chunks ops and checkpoint duration graphs
+- Prometheus samples ingested rate, target scrapes and scrape duration graphs
+- Prometheus HTTP requests graph
+- Prometheus alerts graph
 
 ## Define alerts
 
 I've setup three alerts configuration files:
 
-* Monitoring services alerts [targets.rules](https://github.com/stefanprodan/dockprom/blob/master/prometheus/targets.rules)
-* Docker Host alerts [host.rules](https://github.com/stefanprodan/dockprom/blob/master/prometheus/host.rules)
-* Docker Containers alerts [containers.rules](https://github.com/stefanprodan/dockprom/blob/master/prometheus/containers.rules)
+- Monitoring services alerts [targets.rules](./prometheus/targets.rules)
+- Docker Host alerts [host.rules](./prometheus/host.rules)
+- Docker Containers alerts [containers.rules](./prometheus/containers.rules)
 
 You can modify the alert rules and reload them by making a HTTP POST call to Prometheus:
 
-```
+```bash
 curl -X POST http://admin:admin@<host-ip>:9090/-/reload
 ```
 
@@ -237,7 +294,7 @@ A complete list of integrations can be found [here](https://prometheus.io/docs/a
 
 You can view and silence notifications by accessing `http://<host-ip>:9093`.
 
-The notification receivers can be configured in [alertmanager/config.yml](https://github.com/stefanprodan/dockprom/blob/master/alertmanager/config.yml) file.
+The notification receivers can be configured in [alertmanager/config.yml](./alertmanager/config.yml) file.
 
 To receive alerts via Slack you need to make a custom integration by choose ***incoming web hooks*** in your Slack team app page.
 You can find more details on setting up Slack integration [here](http://www.robustperception.io/using-slack-with-the-alertmanager/).
@@ -258,7 +315,7 @@ receivers:
             api_url: 'https://hooks.slack.com/services/<webhook-id>'
 ```
 
-![Slack Notifications](https://raw.githubusercontent.com/stefanprodan/dockprom/master/screens/Slack_Notifications.png)
+![Slack Notifications](./screens/Slack_Notifications.png)
 
 ## Sending metrics to the Pushgateway
 
@@ -266,7 +323,9 @@ The [pushgateway](https://github.com/prometheus/pushgateway) is used to collect 
 
 To push data, simply execute:
 
-    echo "some_metric 3.14" | curl --data-binary @- http://user:password@localhost:9091/metrics/job/some_job
+```bash
+echo "some_metric 3.14" | curl --data-binary @- http://user:password@localhost:9091/metrics/job/some_job
+```
 
 Please replace the `user:password` part with your user and password set in the initial configuration (default: `admin:admin`).
 
@@ -283,13 +342,13 @@ There are two possible solutions to this problem.
 - Change ownership from 104 to 472
 - Start the upgraded container as user 104
 
-##### Specifying a user in docker-compose.yml
+### Specifying a user in docker-compose.yml
 
-To change ownership of the files run your grafana container as root and modify the permissions.
+To change ownership of the files run your grafana container as `root` and modify the permissions.
 
-First perform a `docker-compose down` then modify your docker-compose.yml to include the `user: root` option:
+First perform a `docker-compose down` then modify your `docker-compose.yml` to include the `user: root` option:
 
-```
+```yaml
   grafana:
     image: grafana/grafana:5.2.2
     container_name: grafana
@@ -315,7 +374,7 @@ First perform a `docker-compose down` then modify your docker-compose.yml to inc
 
 Perform a `docker-compose up -d` and then issue the following commands:
 
-```
+```bash
 docker exec -it --user root grafana bash
 
 # in the container you just started:
@@ -327,7 +386,7 @@ chown -R grafana:grafana /usr/share/grafana
 
 To run the grafana container as `user: 104` change your `docker-compose.yml` like such:
 
-```
+```yaml
   grafana:
     image: grafana/grafana:5.2.2
     container_name: grafana
@@ -350,3 +409,9 @@ To run the grafana container as `user: 104` change your `docker-compose.yml` lik
     labels:
       org.label-schema.group: "monitoring"
 ```
+
+## Logging
+
+## Reverse Proxy
+
+## Architecture

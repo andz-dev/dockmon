@@ -3,6 +3,10 @@ version: '3'
 networks:
   monitor-net:
     driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.5.0.0/16
 
 volumes:
     prometheus_data: {}
@@ -23,9 +27,9 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--storage.tsdb.retention=200h'
       - '--web.enable-lifecycle'
-    restart: unless-stopped
-    ports:
-      - "9090:9090"
+    restart: on-failure
+    expose:
+      - 9090
     networks:
       - monitor-net
     labels:
@@ -35,7 +39,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "fluentd:24224"
+        fluentd-address: "10.5.0.2:24224"
         tag: "docker.{{.ID}}"
   
   alertmanager:
@@ -46,7 +50,7 @@ services:
     command:
       - '--config.file=/etc/alertmanager/config.yml'
       - '--storage.path=/alertmanager'
-    restart: unless-stopped
+    restart: on-failure
     expose:
       - 9093
     networks:
@@ -58,7 +62,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "fluentd:24224"
+        fluentd-address: "10.5.0.2:24224"
         tag: "docker.{{.ID}}"
 
   nodeexporter:
@@ -74,7 +78,7 @@ services:
       - '--path.procfs=/host/proc'
       - '--path.sysfs=/host/sys'
       - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
-    restart: unless-stopped
+    restart: on-failure
     expose:
       - 9100
     networks:
@@ -86,7 +90,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "fluentd:24224"
+        fluentd-address: "10.5.0.2:24224"
         tag: "docker.{{.ID}}"
 
   cadvisor:
@@ -98,7 +102,7 @@ services:
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       #- /cgroup:/cgroup:ro #doesn't work on MacOS only for Linux
-    restart: unless-stopped
+    restart: on-failure
     expose:
       - 8080
     networks:
@@ -110,7 +114,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "fluentd:24224"
+        fluentd-address: "10.5.0.2:24224"
         tag: "docker.{{.ID}}"
   
   grafana:
@@ -126,9 +130,9 @@ services:
       - GF_SECURITY_ADMIN_USER=${ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
+    restart: on-failure
+    expose:
+      - 3000
     networks:
       - monitor-net
     labels:
@@ -138,14 +142,14 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "fluentd:24224"
+        fluentd-address: "10.5.0.2:24224"
         tag: "docker.{{.ID}}"
 
   # https://hub.docker.com/r/prom/pushgateway/
   pushgateway:
     image: prom/pushgateway
     container_name: pushgateway
-    restart: unless-stopped
+    restart: on-failure
     expose:
       - 9091
     networks:
@@ -157,28 +161,29 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "fluentd:24224"
+        fluentd-address: "10.5.0.2:24224"
         tag: "docker.{{.ID}}"
-
   
+  # https://hub.docker.com/r/andzdev/fluentdelasticsearch/
   fluentd:
-    image: andz-dev/fluentelasticsearch
+    image: andzdev/fluentdelasticsearch
     container_name: fluentd
     volumes:
       - ./fluentd/conf:/fluentd/etc
-    restart: unless-stopped
+    restart: on-failure
     expose:
       - 24224
       - 24224/udp
     networks:
-      - monitor-net
+      monitor-net:
+        ipv4_address: 10.5.0.2
     labels:
       org.label-schema.group: "monitoring"
 
   elasticsearch:
     image: elasticsearch:5.6.13-alpine
     container_name: elasticsearch
-    restart: unless-stopped
+    restart: on-failure
     expose:
       - 9200
       - 9300
@@ -193,7 +198,29 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "fluentd:24224"
+        fluentd-address: "10.5.0.2:24224"
+        tag: "docker.{{.ID}}"
+
+  reverse-proxy:
+    image: traefik:1.7.4
+    command: --api --docker
+    container_name: reverseproxy
+    restart: on-failure
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - monitor-net
+    labels:
+      org.label-schema.group: "monitoring"
+    depends_on:
+      - fluentd
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "10.5.0.2:24224"
         tag: "docker.{{.ID}}"
 
   # caddy:
