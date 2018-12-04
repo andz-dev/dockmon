@@ -32,15 +32,6 @@ services:
       - 9090
     networks:
       - monitor-net
-    labels:
-      org.label-schema.group: "monitoring"
-    depends_on:
-      - fluentd
-    logging:
-      driver: fluentd
-      options:
-        fluentd-address: "10.5.0.2:24224"
-        tag: "docker.{{.ID}}"
   
   alertmanager:
     image: prom/alertmanager:v0.15.3
@@ -55,15 +46,6 @@ services:
       - 9093
     networks:
       - monitor-net
-    labels:
-      org.label-schema.group: "monitoring"
-    depends_on:
-      - fluentd
-    logging:
-      driver: fluentd
-      options:
-        fluentd-address: "10.5.0.2:24224"
-        tag: "docker.{{.ID}}"
 
   nodeexporter:
     image: prom/node-exporter:v0.16.0
@@ -83,15 +65,6 @@ services:
       - 9100
     networks:
       - monitor-net
-    labels:
-      org.label-schema.group: "monitoring"
-    depends_on:
-      - fluentd
-    logging:
-      driver: fluentd
-      options:
-        fluentd-address: "10.5.0.2:24224"
-        tag: "docker.{{.ID}}"
 
   cadvisor:
     image: google/cadvisor:v0.32.0
@@ -107,15 +80,6 @@ services:
       - 8080
     networks:
       - monitor-net
-    labels:
-      org.label-schema.group: "monitoring"
-    depends_on:
-      - fluentd
-    logging:
-      driver: fluentd
-      options:
-        fluentd-address: "10.5.0.2:24224"
-        tag: "docker.{{.ID}}"
   
   grafana:
     image: grafana/grafana:5.3.4
@@ -124,8 +88,8 @@ services:
       - grafana_data:/var/lib/grafana
       - ./grafana/datasources:/etc/grafana/datasources
       - ./grafana/dashboards:/etc/grafana/dashboards
-      - ./grafana/setup.sh:/setup.sh
-    entrypoint: /setup.sh
+      # - ./grafana/setup.sh:/setup.sh
+    # entrypoint: /setup.sh
     environment:
       - GF_SECURITY_ADMIN_USER=${ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
@@ -135,15 +99,6 @@ services:
       - 3000
     networks:
       - monitor-net
-    labels:
-      org.label-schema.group: "monitoring"
-    depends_on:
-      - fluentd
-    logging:
-      driver: fluentd
-      options:
-        fluentd-address: "10.5.0.2:24224"
-        tag: "docker.{{.ID}}"
 
   # https://hub.docker.com/r/prom/pushgateway/
   pushgateway:
@@ -154,56 +109,10 @@ services:
       - 9091
     networks:
       - monitor-net
-    labels:
-      org.label-schema.group: "monitoring"
-    depends_on:
-      - fluentd
-    logging:
-      driver: fluentd
-      options:
-        fluentd-address: "10.5.0.2:24224"
-        tag: "docker.{{.ID}}"
-  
-  # https://hub.docker.com/r/andzdev/fluentdelasticsearch/
-  fluentd:
-    image: andzdev/fluentdelasticsearch
-    container_name: fluentd
-    volumes:
-      - ./fluentd/conf:/fluentd/etc
-    restart: unless-stopped
-    expose:
-      - 24224
-      - 24224/udp
-    networks:
-      monitor-net:
-        ipv4_address: 10.5.0.2
-    labels:
-      org.label-schema.group: "monitoring"
-
-  elasticsearch:
-    image: elasticsearch:5.6.13-alpine
-    container_name: elasticsearch
-    restart: on-failure
-    expose:
-      - 9200
-      - 9300
-    networks:
-      - monitor-net
-    labels:
-      org.label-schema.group: "monitoring"
-    depends_on:
-      - fluentd
-    environment:
-      - discovery.type=single-node
-    logging:
-      driver: fluentd
-      options:
-        fluentd-address: "10.5.0.2:24224"
-        tag: "docker.{{.ID}}"
 
   reverse-proxy:
     image: traefik:1.7.4
-    command: --api --docker
+    command: --web --web.metrics.prometheus --web.metrics.prometheus.buckets="0.1,0.3,1.2,5.0" --docker --docker.domain=docker.localhost --logLevel=DEBUG
     container_name: reverseproxy
     restart: on-failure
     ports:
@@ -213,12 +122,3 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - monitor-net
-    labels:
-      org.label-schema.group: "monitoring"
-    depends_on:
-      - fluentd
-    logging:
-      driver: fluentd
-      options:
-        fluentd-address: "10.5.0.2:24224"
-        tag: "docker.{{.ID}}"

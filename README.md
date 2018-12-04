@@ -3,7 +3,15 @@
 A monitoring solution for Docker hosts and containers with [Prometheus](https://prometheus.io/), [Grafana](http://grafana.org/), [cAdvisor](https://github.com/google/cadvisor), [NodeExporter](https://github.com/prometheus/node_exporter) and alerting with [AlertManager](https://github.com/prometheus/alertmanager).
 I forked this project to bring some interesting advantages to the monitoring solution from [Stefan Prodans dockprom](https://github.com/stefanprodan/dockprom).
 
+I also was inspired by other docker monitor projects and tutorials:
+- [A docker-compose stack for Prometheus monitoring](https://github.com/vegasbrianc/prometheus/)
+- [Monitoring in Docker Stacks - It’s that easy with Prometheus!](https://medium.com/@soumyadipde/monitoring-in-docker-stacks-its-that-easy-with-prometheus-5d71c1042443)
+- [Prometheus Monitoring](https://kjanshair.github.io/2018/02/20/prometheus-monitoring/)
+
 Docker logs are collected by [fluentd](https://www.fluentd.org/) and provided with [elasticsearch](https://www.elastic.co/de/).
+For this I build the container image with the elasticsearch plugin. You can visit the [project site on Github](https://github.com/andz-dev/fluentdelasticsearch).
+
+Because this is a huge docker sevice I recommend to split the services into smaller ones which are runs on servers as a service
 
 ***If you're looking for the Docker Swarm version please go to [stefanprodan/swarmprom](https://github.com/stefanprodan/swarmprom)***
 
@@ -20,7 +28,7 @@ Clone this repository on your Docker host, go into the `dockmon` directory and r
 git clone https://github.com/andz-dev/dockmon.git
 cd dockmon
 
-ADMIN_USER=admin ADMIN_PASSWORD=admin docker-compose up -d
+docker-compose up -d
 ```
 
 ## Containers
@@ -40,6 +48,10 @@ ADMIN_USER=admin ADMIN_PASSWORD=admin docker-compose up -d
 ## Volumes
 
 ## Grafana
+
+[Grafana](https://grafana.com/) is the open platform for beautiful analytics and monitoring and supports various services for time series analytics.
+In this scenario we use Grafana to display all necessary stats about out host and the Docker container.
+Also the logging from elasticsearch will be displayed.
 
 ### Setup
 

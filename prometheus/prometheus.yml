@@ -33,7 +33,10 @@ scrape_configs:
     honor_labels: true
     static_configs:
       - targets: ['pushgateway:9091']
-
+  
+  - job_name: 'traefik'
+    static_configs:
+      - targets: ['reverseproxy:8080']
 
 alerting:
   alertmanagers:
