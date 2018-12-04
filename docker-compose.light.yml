@@ -1,12 +1,11 @@
 version: '3'
 
 networks:
-  monitor-net:
+  monitor-frontend:
     driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 10.5.0.0/16
+  monitor-backend:
+    external: false
+  
 
 volumes:
     prometheus_data: {}
@@ -31,7 +30,7 @@ services:
     expose:
       - 9090
     networks:
-      - monitor-net
+      - monitor-backend
   
   alertmanager:
     image: prom/alertmanager:v0.15.3
@@ -45,7 +44,7 @@ services:
     expose:
       - 9093
     networks:
-      - monitor-net
+      - monitor-backend
 
   nodeexporter:
     image: prom/node-exporter:v0.16.0
@@ -64,7 +63,7 @@ services:
     expose:
       - 9100
     networks:
-      - monitor-net
+      - monitor-backend
 
   cadvisor:
     image: google/cadvisor:v0.32.0
@@ -79,15 +78,16 @@ services:
     expose:
       - 8080
     networks:
-      - monitor-net
+      - monitor-backend
   
   grafana:
     image: grafana/grafana:5.3.4
     container_name: grafana
     volumes:
-      - grafana_data:/var/lib/grafana
-      - ./grafana/datasources:/etc/grafana/datasources
-      - ./grafana/dashboards:/etc/grafana/dashboards
+      - grafana_data:/var/lib/grafana/
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+      # - ./grafana/provisioning/datasources:/etc/grafana/datasources
+      # - ./grafana/provisioning/dashboards:/etc/grafana/dashboards
       # - ./grafana/setup.sh:/setup.sh
     # entrypoint: /setup.sh
     environment:
@@ -98,7 +98,7 @@ services:
     expose:
       - 3000
     networks:
-      - monitor-net
+      - monitor-backend
 
   # https://hub.docker.com/r/prom/pushgateway/
   pushgateway:
@@ -108,7 +108,7 @@ services:
     expose:
       - 9091
     networks:
-      - monitor-net
+      - monitor-backend
 
   reverse-proxy:
     image: traefik:1.7.4
@@ -121,4 +121,5 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
-      - monitor-net
+      - monitor-frontend
+      - monitor-backend
