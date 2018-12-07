@@ -1,0 +1,24 @@
+version: '3'
+
+networks:
+  monitor-frontend:
+    driver: bridge
+  monitor-backend:
+    external: false
+
+services:
+
+  traefik:
+    image: traefik:1.7.4
+    container_name: traefik
+    restart: on-failure
+    ports:
+      - 80:80
+      - 443:443
+      - 8080:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./traefik/conf/traefik.toml:/etc/traefik/traefik.toml
+    networks:
+      - monitor-frontend
+      - monitor-backend

@@ -5,7 +5,6 @@ networks:
     driver: bridge
   monitor-backend:
     external: false
-  
 
 volumes:
     prometheus_data: {}
@@ -110,16 +109,19 @@ services:
     networks:
       - monitor-backend
 
-  reverse-proxy:
+  traefik:
     image: traefik:1.7.4
-    command: --web --web.metrics.prometheus --web.metrics.prometheus.buckets="0.1,0.3,1.2,5.0" --docker --docker.domain=docker.localhost --logLevel=DEBUG
-    container_name: reverseproxy
+    # command: --metrics.prometheus --metrics.prometheus.buckets="0.1,0.3,1.2,5.0" --docker --api
+    # command: --api --api.statistics --docker
+    container_name: traefik
     restart: on-failure
     ports:
-      - "80:80"
-      - "8080:8080"
+      - 80:80
+      # - 443:443
+      # - 8080:8080
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./traefik/conf/traefik.toml:/etc/traefik/traefik.toml
     networks:
       - monitor-frontend
       - monitor-backend

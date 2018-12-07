@@ -1,4 +1,4 @@
-# Docker Host Monitor
+# Docker Host and Container Monitoring
 
 A monitoring solution for Docker hosts and containers with [Prometheus](https://prometheus.io/), [Grafana](http://grafana.org/), [cAdvisor](https://github.com/google/cadvisor), [NodeExporter](https://github.com/prometheus/node_exporter) and alerting with [AlertManager](https://github.com/prometheus/alertmanager).
 I forked this project to bring some interesting advantages to the monitoring solution from [Stefan Prodans dockprom](https://github.com/stefanprodan/dockprom).
@@ -50,8 +50,8 @@ docker-compose up -d
 ## Grafana
 
 [Grafana](https://grafana.com/) is the open platform for beautiful analytics and monitoring and supports various services for time series analytics.
-In this scenario we use Grafana to display all necessary stats about out host and the Docker container.
-Also the logging from elasticsearch will be displayed.
+In this scenario we use Grafana to display all necessary stats about our host, the Docker container and other services.
+Also the logging from elasticsearch with fluentd will be displayed.
 
 ### Setup
 
@@ -84,22 +84,28 @@ If you want to change the password, you have to remove this entry, otherwise the
 
 ### Settings
 
-Grafana is preconfigured with some dashboards and configs for Prometheus, Elasticsearch and so on as the default data source. The directory [datasources](./grafana/datasources) contains all in this project available datasources.
+Grafana is preconfigured with some dashboards and configs for Prometheus, Elasticsearch and so on as the default data source. The directory [datasources](./grafana/provisioning/datasources) contains all in this project available datasources.
 
-On the first start the `setup.sh` script imports the dashboards and datasources via the API interface.
-If you work with grafana and add or change dashboards or data sources you can export it for backup.
-The dashboards and data sources can be exported via the Grafana API.
+Because we use the new grafana version provisioning is provided for our docker container also. This means that it is enough to volume mount the provisioning directory in the compose file.
 
-The complete [HTTP API Reference](http://docs.grafana.org/http_api/) can be found on the official Grafana documentation.
+```yaml
+volumes:
+  - ./grafana/provisioning/:/etc/grafana/provisioning/
+```
+
+The JSON files for the dashboards and datasources should be "grafana compatible" - so export your dashboard directly from grafana UI.
+
+Using the provisioning doesn't need an extra `setup` script to load the data via the API.
+If you want to use this way, have a look to grafana's [HTTP API Reference](http://docs.grafana.org/http_api/) documentation.
 
 #### Data Sources
 
-To show all data sources open your browser and enter [http://10.5.0.8:3000/api/datasources](http://10.5.0.8:3000/api/datasources).
+To show all data sources open your browser and enter [http://{IP}:3000/api/datasources](http://{IP}:3000/api/datasources).
 
 You can export all datasources with the following command:
 
 ```bash
-mkdir data_sources && curl -s "http://localhost:3000/api/datasources" -u admin:admin|jq -c -M '.[]'|split -l 1 - data_sources/
+mkdir data_sources && curl -s "http://{IP}:3000/api/datasources" -u admin:admin|jq -c -M '.[]'|split -l 1 - data_sources/
 ```
 
 For more information visit the [Simple export/import of Data Sources in Grafana](https://rmoff.net/2017/08/08/simple-export-import-of-data-sources-in-grafana/)
@@ -108,12 +114,12 @@ For more information visit the [Simple export/import of Data Sources in Grafana]
 
 #### Dashboards
 
-To show all dashboards with inside the `general` directory in grafana you can use the following query. [http://10.5.0.8:3000/api/search?folderIds=0&query=&starred=false](http://10.5.0.8:3000/api/search?folderIds=0&query=&starred=false)
+To show all dashboards with inside the `general` directory in grafana you can use the following query. [http://{IP}:3000/api/search?folderIds=0&query=&starred=false](http://{IP}:3000/api/search?folderIds=0&query=&starred=false)
 
 ![Grafana dashboard query](./screens/Grafana_Dashboard_Query.png)
 
 To get detail information for a dashboard use the uid, for example:
-[http://10.5.0.8:3000/api/dashboards/uid/ceETkLLmk (Docker Container Dashboard)](http://10.5.0.8:3000/api/dashboards/uid/ceETkLLmk)
+[http://{IP}:3000/api/dashboards/uid/ceETkLLmk (Docker Container Dashboard)](http://{IP}:3000/api/dashboards/uid/ceETkLLmk)
 
 To export the dashboards open it inside Grafana and click on the `Share` button.
 
@@ -150,7 +156,7 @@ You can find it in `grafana/dashboards/docker_host.json`, at line 480 :
 
 I work on BTRFS, so i need to change `aufs` to `btrfs`.
 
-You can find right value for your system in Prometheus `http://<host-ip>:9090` launching this request:
+You can find right value for your system in Prometheus `http://{IP}:9090` launching this request:
 
       node_filesystem_free_bytes
 
@@ -257,7 +263,7 @@ ALERT hight_storage_load
   }
 ```
 
-***Docker Containers alerts***
+***Docker Containers alerts (Jenkins example)***
 
 Trigger an alert if a container is down for more than 30 seconds:
 
@@ -304,7 +310,7 @@ The AlertManager service is responsible for handling alerts sent by Prometheus s
 AlertManager can send notifications via email, Pushover, Slack, HipChat or any other system that exposes a webhook interface.
 A complete list of integrations can be found [here](https://prometheus.io/docs/alerting/configuration).
 
-You can view and silence notifications by accessing `http://<host-ip>:9093`.
+You can view and silence notifications by accessing `http://{IP}:9093`.
 
 The notification receivers can be configured in [alertmanager/config.yml](./alertmanager/config.yml) file.
 
@@ -362,26 +368,21 @@ First perform a `docker-compose down` then modify your `docker-compose.yml` to i
 
 ```yaml
   grafana:
-    image: grafana/grafana:5.2.2
+    image: grafana/grafana:5.3.4
     container_name: grafana
     volumes:
-      - grafana_data:/var/lib/grafana
-      - ./grafana/datasources:/etc/grafana/datasources
-      - ./grafana/dashboards:/etc/grafana/dashboards
-      - ./grafana/setup.sh:/setup.sh
-    entrypoint: /setup.sh
+      - grafana_data:/var/lib/grafana/
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
     user: root
     environment:
       - GF_SECURITY_ADMIN_USER=${ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
-    restart: unless-stopped
+    restart: on-failure
     expose:
       - 3000
     networks:
-      - monitor-net
-    labels:
-      org.label-schema.group: "monitoring"
+      - monitor-backend
 ```
 
 Perform a `docker-compose up -d` and then issue the following commands:
@@ -400,29 +401,41 @@ To run the grafana container as `user: 104` change your `docker-compose.yml` lik
 
 ```yaml
   grafana:
-    image: grafana/grafana:5.2.2
+    image: grafana/grafana:5.3.4
     container_name: grafana
     volumes:
-      - grafana_data:/var/lib/grafana
-      - ./grafana/datasources:/etc/grafana/datasources
-      - ./grafana/dashboards:/etc/grafana/dashboards
-      - ./grafana/setup.sh:/setup.sh
-    entrypoint: /setup.sh
+      - grafana_data:/var/lib/grafana/
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
     user: "104"
     environment:
       - GF_SECURITY_ADMIN_USER=${ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
-    restart: unless-stopped
+    restart: on-failure
     expose:
       - 3000
     networks:
-      - monitor-net
-    labels:
-      org.label-schema.group: "monitoring"
+      - monitor-backend
 ```
 
 ## Logging
+
+To extend this monitoring stack to collect and show container logs you can use fluentd with elasticsearch and bind each service to the logging stack.
+Catching the container logs from this stack needs the `logging` parameter in your compose file if you want to use this way.
+
+***Example***
+
+```yaml
+depends_on:
+    - fluentd
+  logging:
+    driver: fluentd
+    options:
+      fluentd-address: "{IP}:24224"
+      tag: "docker.{{.ID}}"
+```
+
+Have a look inside the [fluentd elasticsearch project]() for more information.
 
 ## Reverse Proxy
 
