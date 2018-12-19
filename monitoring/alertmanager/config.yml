@@ -1,0 +1,26 @@
+# Uncomment slack and insert your webhook url in order to get notifications on your slack.
+
+route:
+  receiver: 'logstash'
+  # receiver: 'slack'
+  repeat_interval: 3h
+  group_interval: 5m
+  group_wait: 1m
+  routes:
+  - receiver: 'logstash'
+    continue: true
+
+receivers:
+    # - name: 'slack'
+    #   slack_configs:
+    #       - send_resolved: true
+    #         text: "{{ .CommonAnnotations.description }}"
+    #         username: 'Prometheus'
+    #         channel: '#<channel-name>'
+    #         api_url: 'https://hooks.slack.com/services/<webhook-id>'
+    - name: 'logstash'
+      webhook_configs:
+        # Whether or not to notify about resolved alerts.
+        - send_resolved: true
+          # The endpoint to send HTTP POST requests to.
+          url: "http://logstash:8080/"

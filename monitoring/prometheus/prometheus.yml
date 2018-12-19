@@ -1,0 +1,103 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+
+  # Attach these labels to any time series or alerts when communicating with
+  # external systems (federation, remote storage, Alertmanager).
+  external_labels:
+      monitor: 'codelab-monitor'
+
+# Load and evaluate rules in this file every 'evaluation_interval' seconds.
+rule_files:
+  - "rules/alert.rules"
+  # - "rules/alert.rules_nodes"
+  # - "rules/alert.rules_containers"
+  # - "rules/alert.rules_container-groups"
+  # - "rules/alert.rules_sites"
+
+# A scrape configuration containing exactly one endpoint to scrape:
+# Here it's Prometheus itself.
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+
+  - job_name: 'nodeexporter'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    static_configs:
+      - targets: ['nodeexporter:9100']
+        # labels: {'host': 'host1'}
+
+  - job_name: 'cadvisor'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    static_configs:
+      - targets: ['cadvisor:8080']
+        # labels: {'host': 'host1'}
+
+  - job_name: 'prometheus'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    static_configs:
+      - targets: ['localhost:9090']
+        # labels: {'host': 'host1'}
+
+  # - job_name: 'pushgateway'
+  #   scrape_interval: 10s
+  #   scrape_timeout: 5s
+  #   honor_labels: true
+  #   static_configs:
+  #     - targets: ['pushgateway:9091']
+  
+  - job_name: 'traefik'
+    basic_auth:
+      username: admin
+      password: traefik
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    static_configs:
+      - targets: ['traefik:8080']
+  
+  # see https://github.com/prometheus/blackbox_exporter relabel 
+  - job_name: 'blackboxprober'
+    scrape_interval: 60s
+    scrape_timeout: 15s
+    metrics_path: /probe
+    # if your target is https, you either need to install cert in blackbox proble container
+    # or add below line to ignore verify
+    # tls_config:
+    #  insecure_skip_verify: true
+    params:
+      module: [http_2xx]  # Look for a HTTP 200 response. 
+    file_sd_configs:
+      - files:
+        - /etc/prometheus/service.yml
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: (.*)
+        target_label: __param_target
+        replacement: ${1}
+      - source_labels: [__address__]
+        regex: (.*)
+        target_label: service_url
+        replacement: ${1}
+      - source_labels: []
+        regex: .*
+        target_label: __address__
+        replacement: blackboxprober:9115
+
+# alerting:
+#   alertmanagers:
+#   - scheme: http
+#     static_configs:
+#     - targets: 
+#       - 'alertmanager:9093'
+
+#  - job_name: 'nginx'
+#    scrape_interval: 10s
+#    static_configs:
+#      - targets: ['nginxexporter:9113']
+
+#  - job_name: 'aspnetcore'
+#    scrape_interval: 10s
+#    static_configs:
+#      - targets: ['eventlog-proxy:5000', 'eventlog:5000']

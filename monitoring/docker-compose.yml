@@ -1,0 +1,214 @@
+version: '3'
+
+#########################################################
+####                   MONITORING                    ####
+#########################################################
+
+#########################################################
+####                   Networking                    ####
+#########################################################
+networks:
+  monitoring_logging-frontend:
+    driver: bridge
+  monitoring_logging-backend:
+    external: false
+
+#########################################################
+
+#########################################################
+####                   Volumes                       ####
+#########################################################
+volumes:
+    prometheus_data: {}
+    grafana_data: {}
+
+#########################################################
+
+services:
+
+  # Storage and search backend. Gets all metrics from cAdvisor and Nodeexporter and is the backend that Grafana runs on.
+  prometheus:
+    image: prom/prometheus:v2.5.0
+    container_name: prometheus
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+      - prometheus_data:/prometheus
+    restart: always
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention=200h'
+      - '--web.enable-lifecycle'
+    labels:
+      container_group: monitoring
+    expose:
+      - 9090
+    networks:
+      - monitoring_logging-backend
+    # logging:
+    #   driver: gelf
+    #   options:
+    #     gelf-address: udp://elastalert:12201
+    #     labels: container_group
+
+#########################################################
+
+  # Alerting plugin wrapping Prometheus and taking care of your metric alerting needs.
+  alertmanager:
+    image: prom/alertmanager:v0.15.3
+    container_name: alertmanager
+    volumes: 
+      - ./alertmanager/:/etc/alertmanager/
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+      - '--storage.path=/alertmanager'
+    restart: on-failure
+    labels:
+      container_group: monitoring
+    expose:
+      - 9093
+    networks:
+      - monitoring_logging-backend
+    # logging:
+    #   driver: gelf
+    #   options:
+    #     gelf-address: udp://elastalert:12201
+    #     labels: container_group
+
+#########################################################
+
+  # Runs on your node(s) and forwards node(host) metrics to Prometheus.
+  nodeexporter:
+    image: prom/node-exporter:v0.16.0
+    container_name: nodeexporter
+    # user: root
+    # privileged: true
+    # volumes:
+    #   - /proc:/host/proc:ro
+    #   - /sys:/host/sys:ro
+    #   - /:/rootfs:ro
+    # command:
+    #   - '--path.procfs=/host/proc'
+    #   - '--path.sysfs=/host/sys'
+    #   - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+    restart: always
+    labels:
+      container_group: monitoring
+    expose:
+      - 9100
+    networks:
+      - monitoring_logging-backend
+    # logging:
+    #   driver: gelf
+    #   options:
+    #     gelf-address: udp://elastalert:12201
+    #     labels: container_group
+
+#########################################################
+
+  # Runs on your node(s) and forwards container metrics to Prometheus.
+  cadvisor:
+    image: google/cadvisor:v0.32.0
+    container_name: cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      #- /cgroup:/cgroup:ro #doesn't work on MacOS only for Linux
+    restart: always
+    labels:
+      container_group: monitoring
+    expose:
+      - 8080
+    networks:
+      - monitoring_logging-backend
+    # logging:
+    #   driver: gelf
+    #   options:
+    #     gelf-address: udp://elastalert:12201
+    #     labels: container_group
+
+#########################################################
+
+  # Pretty frontend to explore and check out all your metrics.
+  grafana:
+    image: grafana/grafana:5.3.4
+    container_name: grafana
+    volumes:
+      - grafana_data:/var/lib/grafana/
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+      # - ./grafana/provisioning/datasources:/etc/grafana/datasources
+      # - ./grafana/provisioning/dashboards:/etc/grafana/dashboards
+      # - ./grafana/setup.sh:/setup.sh
+    # entrypoint: /setup.sh
+    environment:
+      - GF_SECURITY_ADMIN_USER=${ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      # - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    restart: always
+    labels:
+      - "container_group: monitoring"
+      - "traefik.port=3000"
+      - "traefik.frontend.rule=Host:grafana.localhost"
+    expose:
+      - 3000
+    networks:
+      - monitoring_logging-backend
+    # logging:
+    #   driver: gelf
+    #   options:
+    #     gelf-address: udp://elastalert:12201
+    #     labels: container_group
+
+#########################################################
+
+  # The blackbox exporter allows blackbox probing of endpoints over HTTP, HTTPS, DNS, TCP and ICMP.
+  blackboxprober:
+    image: prom/blackbox-exporter:v0.13.0
+    volumes:
+      - ./blackboxprober:/etc/blackbox_exporter
+    ports:
+      - 9115:9115
+    restart: always
+    labels:
+      container_group: monitoring
+    networks:
+      - monitoring_logging-backend
+    # logging:
+    #   driver: gelf
+    #   options:
+    #     gelf-address: udp://elastalert:12201
+    #     labels: container_group
+
+#########################################################
+
+  traefik:
+    image: traefik:1.7.4-alpine
+    # command: --metrics.prometheus --metrics.prometheus.buckets="0.1,0.3,1.2,5.0" --docker --api
+    # command: --api --api.statistics --docker
+    container_name: traefik
+    restart: always
+    ports:
+      - 80:80
+      - 443:443
+      - 8080:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./traefik/conf/traefik.toml:/etc/traefik/traefik.toml
+    networks:
+      - monitoring_logging-frontend
+      - monitoring_logging-backend
+
+  # https://hub.docker.com/r/prom/pushgateway/
+  # pushgateway:
+  #   image: prom/pushgateway
+  #   container_name: pushgateway
+  #   restart: on-failure
+  #   expose:
+  #     - 9091
+  #   networks:
+  #     - monitor-backend

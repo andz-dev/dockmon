@@ -2,6 +2,8 @@
 
 A monitoring solution for Docker hosts and containers with [Prometheus](https://prometheus.io/), [Grafana](http://grafana.org/), [cAdvisor](https://github.com/google/cadvisor), [NodeExporter](https://github.com/prometheus/node_exporter) and alerting with [AlertManager](https://github.com/prometheus/alertmanager).
 I forked this project to bring some interesting advantages to the monitoring solution from [Stefan Prodans dockprom](https://github.com/stefanprodan/dockprom).
+An other great solution is the monitoring and logging suite from [Wilhelm Uschtrin](https://github.com/uschtwill/docker_monitoring_logging_alerting).
+He provides a very good tool set that is very well structured.
 
 I also was inspired by other docker monitor projects and tutorials:
 - [A docker-compose stack for Prometheus monitoring](https://github.com/vegasbrianc/prometheus/)

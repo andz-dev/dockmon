@@ -1,0 +1,43 @@
+# logLevel="DEBUG"
+defaultEntryPoints = ["http"]
+
+[entryPoints]
+  [entryPoints.http]
+  address = ":80"
+  [entryPoints.http.auth.basic]
+  users = ["admin:$apr1$SXy1lYwS$1qgGTTSol1ytMSEdq2fsX1"]
+    # [entryPoints.http.redirect]
+    #   entryPoint = "https"
+#   [entryPoints.https]
+    # address = ":443"
+    # [entryPoints.https.tls]
+
+# Set up logging.
+# traefikLogsFile = "/opt/traefik/traefik-stdout.log"
+# accessLogsFile = "/opt/traefik/traefik-stdout.log"
+# logLevel = "INFO"
+
+# onDemand = false
+# OnHostRule = true
+# entryPoint = "http"
+
+# [web]
+# address = ":80"
+
+[docker]
+domain = "docker.local"
+watch = true
+# exposedbydefault = false
+endpoint = "unix:///var/run/docker.sock"
+
+[metrics]
+  [metrics.prometheus]
+  buckets = [0.1,0.3,1.2,5.0]
+  entryPoint = "traefik"
+
+[api]
+  entryPoint = "traefik"
+  dashboard = true
+  debug = true
+  [api.statistics]
+    recentErrors = 100
